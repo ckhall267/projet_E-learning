@@ -1,0 +1,3 @@
+# Place your symptoms_disease.csv file here
+# Format: CSV with symptom columns (binary 0/1) and a 'disease' column
+

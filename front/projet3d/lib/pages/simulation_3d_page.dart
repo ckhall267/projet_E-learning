@@ -740,7 +740,7 @@ class _Simulation3DPageState extends State<Simulation3DPage> {
           Row(
             children: [
               const Text(
-                'Confiance: ',
+                'Confiance de l\'IA : ',
                 style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
               Text(

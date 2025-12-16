@@ -253,8 +253,20 @@ async def check_answer(request: CheckAnswerRequest):
         pred_request = SymptomsRequest(symptoms=request.symptoms)
         prediction = await predict_disease(pred_request)
         
-        # Compare with student answer
-        is_correct = prediction.predicted_disease.lower().strip() == request.student_answer.lower().strip()
+        # Compare with student answer using fuzzy matching
+        student_ans = request.student_answer.lower().strip()
+        predicted_ans = prediction.predicted_disease.lower().strip()
+        
+        # Exact match
+        is_correct = student_ans == predicted_ans
+        
+        # Fuzzy match if not exact
+        if not is_correct:
+            import difflib
+            similarity = difflib.SequenceMatcher(None, student_ans, predicted_ans).ratio()
+            # Threshold: 85% similarity matches (e.g. "Pneumonie" vs "Pneumonie" is 1.0, vs "Pneuomnie" is high)
+            if similarity >= 0.85:
+                is_correct = True
         
         # Generate feedback
         if is_correct:
@@ -264,7 +276,14 @@ async def check_answer(request: CheckAnswerRequest):
         
         # If expected disease is provided, use it for validation
         if request.expected_disease:
-            is_correct = prediction.predicted_disease.lower().strip() == request.expected_disease.lower().strip()
+            expected_ans = request.expected_disease.lower().strip()
+            # Check against expected disease with fuzzy matching too
+            if student_ans == expected_ans:
+                is_correct = True
+            else:
+                 similarity = difflib.SequenceMatcher(None, student_ans, expected_ans).ratio()
+                 if similarity >= 0.85:
+                     is_correct = True
         
         return CheckAnswerResponse(
             is_correct=is_correct,

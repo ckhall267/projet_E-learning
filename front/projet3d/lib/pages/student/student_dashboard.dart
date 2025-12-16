@@ -326,10 +326,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.all(16),
-                child: QrImageView(
-                  data: qrToken ?? 'Erreur: Pas de token',
-                  version: QrVersions.auto,
-                  size: 200.0,
+                child: SizedBox(
+                   width: 200,
+                   height: 200,
+                   child: QrImageView(
+                    data: qrToken ?? 'Erreur: Pas de token',
+                    version: QrVersions.auto,
+                   ),
                 ),
               ),
               const SizedBox(height: 16),

@@ -95,6 +95,11 @@ public class AuthController {
         String email = auth.getName();
         com.med3d.backend.model.User user = userRepository.findByEmail(email).orElseThrow();
 
+        if (user.getQrToken() == null || user.getQrToken().isEmpty()) {
+            user.setQrToken(java.util.UUID.randomUUID().toString());
+            userRepository.save(user);
+        }
+
         java.util.Map<String, Object> response = new java.util.HashMap<>();
         response.put("nom", user.getNom());
         response.put("prenom", user.getPrenom());

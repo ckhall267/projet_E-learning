@@ -317,7 +317,6 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
     );
 
     try {
-      // Use auth service to get profile which includes QR Token
       final profile = await _authService.getUserProfile(widget.token);
       final qrToken = profile['qrToken'];
 
@@ -332,15 +331,18 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.all(16),
-                child: QrImageView(
-                  data: qrToken ?? 'Erreur: Pas de token',
-                  version: QrVersions.auto,
-                  size: 200.0,
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: QrImageView(
+                      data: qrToken ?? 'Erreur: Pas de token',
+                      version: QrVersions.auto,
+                    ),
+                  ),
                 ),
-              ),
               const SizedBox(height: 16),
               const Text(
                 'Scannez ce code pour vous connecter',

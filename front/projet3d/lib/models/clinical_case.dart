@@ -5,6 +5,7 @@ class ClinicalCase {
   final String difficulty; // 'easy', 'medium', 'hard'
   final List<int> symptoms;
   final String? expectedDiagnosis;
+  final String? travailPratiqueId;
   final bool isCompleted;
 
   ClinicalCase({
@@ -14,6 +15,7 @@ class ClinicalCase {
     required this.difficulty,
     required this.symptoms,
     this.expectedDiagnosis,
+    this.travailPratiqueId,
     this.isCompleted = false,
   });
 
@@ -35,6 +37,32 @@ class ClinicalCase {
       expectedDiagnosis: expectedDiagnosis ?? this.expectedDiagnosis,
       isCompleted: isCompleted ?? this.isCompleted,
     );
+  }
+
+  factory ClinicalCase.fromJson(Map<String, dynamic> json) {
+    return ClinicalCase(
+      id: json['id']?.toString() ?? '',
+      title: json['titre'] ?? '',
+      description: json['description'] ?? '',
+      difficulty: json['difficulte'] ?? 'medium',
+      symptoms: (json['symptomesIds'] as List<dynamic>?)?.map((e) => e as int).toList() ?? [],
+      expectedDiagnosis: json['diagnosticAttendu'],
+      travailPratiqueId: json['travailPratiqueId']?.toString(),
+      isCompleted: json['isCompleted'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'titre': title,
+      'description': description,
+      'difficulte': difficulty,
+      'symptomesIds': symptoms,
+      'diagnosticAttendu': expectedDiagnosis,
+      'travailPratiqueId': travailPratiqueId,
+      // 'isCompleted': isCompleted,
+    };
   }
 
   String get difficultyText {

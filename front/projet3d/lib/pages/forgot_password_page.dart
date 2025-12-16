@@ -30,7 +30,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       Future.delayed(const Duration(seconds: 1), () {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+          MaterialPageRoute(builder: (context) => LoginPage()),
         );
       });
     }
@@ -165,7 +165,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         onTap: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => const LoginPage()),
+                            MaterialPageRoute(builder: (context) => LoginPage()),
                           );
                         },
                         child: const Text(

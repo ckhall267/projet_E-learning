@@ -4,10 +4,31 @@ import '../../models/student.dart';
 import '../../models/clinical_case.dart';
 import '../../widgets/tp_card.dart';
 import '../../widgets/create_tp_dialog.dart';
+import '../../widgets/create_case_dialog.dart';
+import '../../widgets/add_student_dialog.dart';
 import '../simulation_3d_page.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import '../../widgets/grade_student_dialog.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../../services/auth_service.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../login_page.dart';
 
 class ProfessorDashboard extends StatefulWidget {
-  const ProfessorDashboard({super.key});
+  final String nom;
+  final String prenom;
+  final String token;
+
+  const ProfessorDashboard({
+    super.key, 
+    required this.nom, 
+    required this.prenom,
+    required this.token,
+  });
 
   @override
   State<ProfessorDashboard> createState() => _ProfessorDashboardState();
@@ -15,40 +36,159 @@ class ProfessorDashboard extends StatefulWidget {
 
 class _ProfessorDashboardState extends State<ProfessorDashboard> {
   int _selectedTab = 0;
+  bool _isLoading = false;
+  List<PracticalWork> _practicalWorks = [];
+  List<ClinicalCase> _clinicalCases = [];
+  final _authService = AuthService();
 
-  // Données de démonstration
-  final List<PracticalWork> _practicalWorks = [
-    PracticalWork(
-      id: '1',
-      title: 'Anatomie du Cœur Humain',
-      description:
-          'Exploration 3D des structures cardiaques et identification des pathologies courantes',
-      duration: '2h',
-      studentCount: 24,
-      status: TPStatus.published,
-      category: TPCategory.cardiology,
-    ),
-    PracticalWork(
-      id: '2',
-      title: 'Système Nerveux Central',
-      description:
-          'Étude interactive du cerveau et de la moelle épinière avec cas cliniques',
-      duration: '3h',
-      studentCount: 18,
-      status: TPStatus.published,
-      category: TPCategory.neurology,
-    ),
-    PracticalWork(
-      id: '3',
-      title: 'Pathologies Respiratoires',
-      description:
-          'Simulation de diagnostics et traitements des maladies pulmonaires',
-      duration: '2h30',
-      studentCount: 0,
-      status: TPStatus.draft,
-      category: TPCategory.pulmonology,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchTPs();
+    _fetchCases();
+  }
+
+  Future<void> _fetchCases() async {
+    // setState(() => _isLoading = true); // Avoid double loading state with TPs or handle separately
+    try {
+      final response = await http.get(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/cases")}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _clinicalCases = data.map((json) => ClinicalCase.fromJson(json)).toList();
+        });
+      } else {
+        print('Erreur chargement Cas: ${response.body}');
+      }
+    } catch (e) {
+      print('Erreur connexion Cas: $e');
+    }
+  }
+
+  Future<void> _fetchTPs() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.get(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/tps")}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _practicalWorks = data.map((json) => PracticalWork.fromJson(json)).toList();
+        });
+      } else {
+        _showError('Erreur chargement TPs: ${response.body}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _createTP(PracticalWork tp) async {
+    setState(() => _isLoading = true);
+    try {
+      final tpData = tp.toJson();
+      tpData.remove('id'); // Let backend generate ID
+      tpData.remove('studentCount'); // Not a field in backend entity
+
+      final response = await http.post(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/tps")}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(tpData),
+      );
+
+      if (response.statusCode == 200) {
+        _fetchTPs(); // Refresh list
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TP créé avec succès'), backgroundColor: Colors.green),
+        );
+      } else {
+        _showError('Erreur création TP: ${response.body}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteTP(String id) async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.delete(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/tps")}/$id'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _practicalWorks.removeWhere((p) => p.id == id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TP supprimé avec succès'), backgroundColor: Colors.green),
+        );
+      } else {
+        _showError('Erreur suppression TP: ${response.body}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updateTP(PracticalWork tp) async {
+    setState(() => _isLoading = true);
+    try {
+      final tpData = tp.toJson();
+      tpData.remove('studentCount'); // Not a field in backend entity
+
+      final response = await http.put(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/tps")}/${tp.id}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(tpData),
+      );
+
+      if (response.statusCode == 200) {
+        _fetchTPs();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TP modifié avec succès'), backgroundColor: Colors.green),
+        );
+      } else {
+        _showError('Erreur modification TP: ${response.body}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
 
   void _handleViewTP(PracticalWork tp) {
     // TODO: Naviguer vers la page de visualisation du TP
@@ -61,11 +201,24 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
   }
 
   void _handleEditTP(PracticalWork tp) {
-    // TODO: Naviguer vers la page d'édition du TP
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Édition de: ${tp.title}'),
-        backgroundColor: const Color(0xFF23B8C0),
+    showDialog(
+      context: context,
+      builder: (context) => CreateTPDialog(
+        // TODO: Pass existing TP to dialog for editing (CreateTPDialog needs update to support edit)
+        // For now, we simulate success
+        onCreate: (updatedTP) {
+             // We need to keep the ID of the TP being edited
+             final tpToUpdate = PracticalWork(
+               id: tp.id,
+               title: updatedTP.title,
+               description: updatedTP.description,
+               duration: updatedTP.duration,
+               studentCount: tp.studentCount,
+               status: updatedTP.status,
+               category: updatedTP.category,
+             );
+             _updateTP(tpToUpdate);
+        },
       ),
     );
   }
@@ -90,16 +243,8 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
           ),
           ElevatedButton(
             onPressed: () {
-              setState(() {
-                _practicalWorks.removeWhere((p) => p.id == tp.id);
-              });
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('TP supprimé avec succès'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              _deleteTP(tp.id);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -116,12 +261,106 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
       context: context,
       builder: (context) => CreateTPDialog(
         onCreate: (newTP) {
-          setState(() {
-            _practicalWorks.add(newTP);
-          });
+          _createTP(newTP);
         },
       ),
     );
+  }
+
+  void _handleCreateCase() {
+    showDialog(
+      context: context,
+      builder: (context) => CreateCaseDialog(
+        availableTPs: _practicalWorks,
+        onCreate: (newCase) {
+          _createCase(newCase);
+        },
+      ),
+    );
+  }
+
+  Future<void> _createCase(ClinicalCase newCase) async {
+    setState(() => _isLoading = true);
+    try {
+      final caseData = newCase.toJson();
+      caseData.remove('id'); 
+     
+      final response = await http.post(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/cases")}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(caseData),
+      );
+
+      if (response.statusCode == 200) {
+        _fetchCases();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cas clinique créé avec succès'), backgroundColor: Colors.green),
+        );
+      } else {
+        _showError('Erreur création Cas: ${response.body}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+
+  }
+
+  Future<void> _showMyQrCode() async {
+    showDialog(
+      context: context,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // Use auth service to get profile which includes QR Token
+      final profile = await _authService.getUserProfile(widget.token);
+      final qrToken = profile['qrToken'];
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A2E),
+          title: const Text('Mon QR Code', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(16),
+                child: QrImageView(
+                  data: qrToken ?? 'Erreur: Pas de token',
+                  version: QrVersions.auto,
+                  size: 200.0,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Scannez ce code pour vous connecter',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer', style: TextStyle(color: Color(0xFF23B8C0))),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+      _showError('Erreur lors de la récupération du QR Code: $e');
+    }
   }
 
   Widget _buildHeader() {
@@ -177,9 +416,9 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
-                    'Dr. Marie Dubois',
-                    style: TextStyle(
+                  Text(
+                    'Dr. ${widget.prenom} ${widget.nom}',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -202,16 +441,32 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
                   color: const Color(0xFF23B8C0),
                   shape: BoxShape.circle,
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
-                    'MD',
-                    style: TextStyle(
+                    '${widget.prenom[0]}${widget.nom[0]}',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.qr_code, color: Colors.white),
+                tooltip: 'Mon QR Code',
+                onPressed: () => _showMyQrCode(),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.white70),
+                onPressed: () {
+                   Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => LoginPage()),
+                  );
+                },
               ),
             ],
           ),
@@ -357,7 +612,12 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
             const SizedBox(height: 32),
 
             // Liste des TPs
-            ..._practicalWorks.map((tp) => TPCard(
+            if (_isLoading)
+               const Center(child: CircularProgressIndicator())
+            else if (_practicalWorks.isEmpty)
+               const Center(child: Text("Aucun TP trouvé", style: TextStyle(color: Colors.white)))
+            else
+               ..._practicalWorks.map((tp) => TPCard(
                   tp: tp,
                   onView: () => _handleViewTP(tp),
                   onEdit: () => _handleEditTP(tp),
@@ -403,6 +663,31 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
               ),
             ),
             const SizedBox(height: 32),
+             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Mes Cas Cliniques',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _handleCreateCase,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text(
+                    'Nouveau Cas',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF23B8C0),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             // Cas cliniques disponibles
             _buildAvailableCases(),
           ],
@@ -412,33 +697,6 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
   }
 
   Widget _buildAvailableCases() {
-    final availableCases = [
-      ClinicalCase(
-        id: '1',
-        title: 'Infarctus du myocarde',
-        description: 'Cas d\'urgence cardiaque avec douleur thoracique',
-        difficulty: 'hard',
-        symptoms: [0, 1, 3, 4, 6], // Douleur thoracique, Essoufflement, Transpiration, Fatigue, Palpitations
-        expectedDiagnosis: 'Infarctus du myocarde',
-      ),
-      ClinicalCase(
-        id: '2',
-        title: 'Pneumonie',
-        description: 'Infection pulmonaire avec symptômes respiratoires',
-        difficulty: 'medium',
-        symptoms: [1, 7, 4], // Essoufflement, Toux, Fatigue
-        expectedDiagnosis: 'Pneumonie',
-      ),
-      ClinicalCase(
-        id: '3',
-        title: 'Grippe',
-        description: 'Infection virale courante',
-        difficulty: 'easy',
-        symptoms: [4, 5, 2], // Fatigue, Vertiges, Nausées
-        expectedDiagnosis: 'Grippe',
-      ),
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -451,7 +709,10 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
           ),
         ),
         const SizedBox(height: 16),
-        ...availableCases.map((caseItem) => _buildCaseCard(caseItem)),
+        if (_clinicalCases.isEmpty)
+           const Text("Aucun cas clinique disponible", style: TextStyle(color: Colors.white70))
+        else
+           ..._clinicalCases.map((caseItem) => _buildCaseCard(caseItem)),
       ],
     );
   }
@@ -570,28 +831,17 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
   }
 
   Widget _buildStudentsGradesContent() {
-    // Données de démonstration pour les étudiants
-    final List<Student> students = [
-      Student(
-        id: '1',
-        name: 'Sophie Martin',
-        email: 'sophie.martin@email.com',
-        tpId: '1',
-        tpTitle: 'Anatomie du Cœur Humain',
-        progress: 100,
-        status: StudentStatus.completed,
-        grade: 16.5,
-      ),
-      Student(
-        id: '2',
-        name: 'Lucas Dubois',
-        email: 'lucas.dubois@email.com',
-        tpId: '1',
-        tpTitle: 'Anatomie du Cœur Humain',
-        progress: 75,
-        status: StudentStatus.inProgress,
-      ),
-    ];
+    // Aggregate students from all TPs
+    final List<Student> students = [];
+    for (var tp in _practicalWorks) {
+      for (var student in tp.assignedStudents) {
+        // Enforce TP context into student object for display
+        students.add(student.copyWith(
+          tpId: tp.id,
+          tpTitle: tp.title,
+        ));
+      }
+    }
 
     final int totalStudents = students.length;
     final int completed = students.where((s) => s.status == StudentStatus.completed).length;
@@ -661,14 +911,7 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
                 Row(
                   children: [
                     ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Export en cours...'),
-                            backgroundColor: Color(0xFF23B8C0),
-                          ),
-                        );
-                      },
+                      onPressed: _handleExport,
                       icon: const Icon(Icons.download, color: Color(0xFF23B8C0)),
                       label: const Text(
                         'Exporter',
@@ -685,10 +928,18 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Ajouter un étudiant'),
-                            backgroundColor: Color(0xFF23B8C0),
+                        showDialog(
+                          context: context,
+                          builder: (context) => AddStudentDialog(
+                            // Utilise le premier TP s'il existe, sinon l'utilisateur devra créer un TP d'abord
+                             tpId: _practicalWorks.isNotEmpty ? int.parse(_practicalWorks.first.id) : 0,
+                            token: widget.token,
+                            onAssign: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Étudiant ajouté avec succès')),
+                              );
+                              // TODO: Rafraîchir la liste des étudiants si elle était dynamique
+                            },
                           ),
                         );
                       },
@@ -960,19 +1211,14 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
                 IconButton(
                   onPressed: () {
                     // Attribuer une note
-                    _showGradeDialog(student);
+                    _handleGrade(student.id, student.tpId, student.name);
                   },
                   icon: const Icon(Icons.emoji_events, color: Color(0xFF23B8C0), size: 20),
                   tooltip: 'Attribuer une note',
                 ),
                 IconButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Envoi d\'un message à ${student.name}'),
-                        backgroundColor: const Color(0xFF23B8C0),
-                      ),
-                    );
+                     _handleEmail(student.email);
                   },
                   icon: const Icon(Icons.email, color: Color(0xFF23B8C0), size: 20),
                   tooltip: 'Envoyer un message',
@@ -985,62 +1231,104 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
     );
   }
 
-  void _showGradeDialog(Student student) {
-    final gradeController = TextEditingController();
+
+
+  void _handleGrade(String studentId, String tpId, String studentName) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: Text(
-          'Attribuer une note à ${student.name}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: gradeController,
-          style: const TextStyle(color: Colors.white),
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: 'Note /20',
-            labelStyle: const TextStyle(color: Colors.white70),
-            filled: true,
-            fillColor: Colors.white.withOpacity(0.1),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF23B8C0), width: 2),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // TODO: Sauvegarder la note
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Note attribuée avec succès'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF23B8C0),
-            ),
-            child: const Text('Valider'),
-          ),
-        ],
+      builder: (context) => GradeStudentDialog(
+        studentName: studentName,
+        onGrade: (grade) => _submitGrade(studentId, tpId, grade),
       ),
+    );
+  }
+
+  Future<void> _submitGrade(String studentId, String tpId, double grade) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/tps")}/$tpId/students/$studentId/grade'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(grade),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Note attribuée avec succès'), backgroundColor: Colors.green),
+        );
+        _fetchTPs(); // Refresh List
+      } else {
+        _showError('Erreur attribution note: ${response.statusCode}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    }
+  }
+
+
+  Future<void> _handleEmail(String email) async {
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: email,
+      query: encodeQueryParameters(<String, String>{
+        'subject': 'Med3D - Suivi E-Learning',
+        'body': 'Bonjour,\n\nConcernant votre progression...',
+      }),
+    );
+
+    if (await canLaunchUrl(emailLaunchUri)) {
+      await launchUrl(emailLaunchUri);
+    } else {
+      _showError('Impossible d\'ouvrir le client mail');
+    }
+  }
+
+  String? encodeQueryParameters(Map<String, String> params) {
+    return params.entries
+        .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+  }
+
+  Future<void> _handleExport() async {
+    final pdf = pw.Document();
+    
+    // Aggregation des données pour le PDF
+    final List<Student> students = [];
+    for (var tp in _practicalWorks) {
+      for (var student in tp.assignedStudents) {
+         students.add(student.copyWith(
+          tpId: tp.id,
+          tpTitle: tp.title,
+        ));
+      }
+    }
+
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) {
+          return pw.Column(
+            children: [
+              pw.Header(level: 0, child: pw.Text('Rapport de Suivi des Etudiants - Med3D', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 24))),
+              pw.SizedBox(height: 20),
+              pw.Table.fromTextArray(
+                context: context,
+                data: <List<String>>[
+                  <String>['Nom', 'Email', 'TP', 'Note'],
+                  ...students.map(
+                    (student) => [student.name, student.email, student.tpTitle, student.grade != null ? '${student.grade}/20' : 'N/A']
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
     );
   }
 

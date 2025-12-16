@@ -166,35 +166,39 @@ class TPCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
               // Bouton Modifier
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF23B8C0),
-                  borderRadius: BorderRadius.circular(8),
+              if (onEdit != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF23B8C0),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                  ),
                 ),
-                child: IconButton(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit, color: Colors.white, size: 18),
-                ),
-              ),
-              const SizedBox(width: 8),
+              ],
               // Bouton Supprimer
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red, width: 1),
+              if (onDelete != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red, width: 1),
+                  ),
+                  child: IconButton(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                  ),
                 ),
-                child: IconButton(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                ),
-              ),
+              ],
             ],
           ),
         ],

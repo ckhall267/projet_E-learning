@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'register_page.dart';
 import 'forgot_password_page.dart';
 import 'professor/professor_dashboard.dart';
+import 'scan_page.dart';
+import 'scan_page.dart';
+import 'student/student_dashboard.dart';
+import 'admin/admin_dashboard.dart';
+import 'package:projet3d/services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -21,13 +26,58 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    // TODO: Implémenter la logique de connexion avec vérification du rôle
-    // Pour l'instant, rediriger vers le dashboard professeur
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const ProfessorDashboard()),
-    );
+  final _authService = AuthService();
+
+  Future<void> _handleLogin() async {
+    try {
+      final response = await _authService.login(
+        _emailController.text,
+        _passwordController.text,
+      );
+
+      final role = response['role'].toString().trim();
+      final nom = response['nom'];
+      final prenom = response['prenom'];
+      
+      final token = response['jwt']; // Extract token
+      
+      print('DEBUG: Role received: "$role"'); // Debug print
+
+      if (mounted) {
+        if (role == 'Etudiant') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => StudentDashboard(nom: nom, prenom: prenom, token: token)),
+          );
+        } else if (role == 'Professeur') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => ProfessorDashboard(nom: nom, prenom: prenom, token: token)),
+          );
+        } else if (role == 'Administrateur') {
+           Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => AdminDashboard(nom: nom, prenom: prenom, token: token)),
+          );
+        } else {
+             ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+              content: Text('Rôle non reconnu: "$role"'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur de connexion: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -135,6 +185,36 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
+
+                    // Bouton scan badge
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF23B8C0),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ScanPage()),
+                          );
+                        },
+                        icon: const Icon(Icons.qr_code_scanner),
+                        label: const Text(
+                          'Scanner un Badge',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
                     // Bouton de connexion
                     SizedBox(

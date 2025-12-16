@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:projet3d/services/auth_service.dart';
 import 'login_page.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -25,22 +26,51 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
-  void _handleRegister() {
+  final _authService = AuthService();
+
+  Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
-      // TODO: Implémenter la logique d'inscription
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inscription en cours...'),
-          backgroundColor: Color(0xFF23B8C0),
-        ),
-      );
-      // Rediriger vers la page de connexion après inscription
-      Future.delayed(const Duration(seconds: 1), () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inscription en cours...'),
+            backgroundColor: Color(0xFF23B8C0),
+          ),
         );
-      });
+
+        await _authService.register(
+          _nameController.text.split(' ').first, // Prénom simpliste
+          _nameController.text.split(' ').length > 1 ? _nameController.text.split(' ').sublist(1).join(' ') : '', // Nom
+          _emailController.text,
+          _passwordController.text,
+          _selectedRole,
+        );
+
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Inscription réussie !'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Rediriger vers la page de connexion après inscription
+          Future.delayed(const Duration(seconds: 1), () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => LoginPage()),
+            );
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -116,7 +146,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           decoration: const InputDecoration(
                             border: InputBorder.none,
                           ),
-                          items: ['Étudiant', 'Professeur', 'Admin']
+                          items: ['Étudiant', 'Professeur']
                               .map((role) => DropdownMenuItem(
                                     value: role,
                                     child: Text(role),
@@ -292,7 +322,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         onTap: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => const LoginPage()),
+                            MaterialPageRoute(builder: (context) => LoginPage()),
                           );
                         },
                         child: const Text(

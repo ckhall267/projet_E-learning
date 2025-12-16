@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,10 +13,12 @@
             background: #1A1A2E;
             font-family: Arial, sans-serif;
         }
+
         #container {
             width: 100%;
             height: 100vh;
         }
+
         #info {
             position: absolute;
             top: 10px;
@@ -28,6 +31,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="container"></div>
     <div id="info">
@@ -65,108 +69,189 @@
         directionalLight.castShadow = true;
         scene.add(directionalLight);
 
-        // Modèle 3D simplifié du patient (silhouette humaine)
+        // Modèle 3D anatomique du patient
         const patientGroup = new THREE.Group();
 
-        // Tête
-        const headGeometry = new THREE.SphereGeometry(0.3, 32, 32);
-        const headMaterial = new THREE.MeshStandardMaterial({ 
+        // Matériau pour le corps (peau transparente)
+        const skinMaterial = new THREE.MeshPhysicalMaterial({
             color: 0xFFDBAC,
-            roughness: 0.7,
-            metalness: 0.1
+            roughness: 0.3,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.3, // Semi-transparent pour voir les organes
+            side: THREE.FrontSide,
+            transmission: 0.2
         });
-        const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.set(0, 1.5, 0);
+
+        // Matériau pour le squelette (optionnel, pour structure)
+        const boneMaterial = new THREE.MeshStandardMaterial({ color: 0xE8E8E8 });
+
+        // Tête (plus réaliste)
+        const headGeometry = new THREE.SphereGeometry(0.22, 32, 32);
+        headGeometry.scale(0.8, 1, 0.95);
+        const head = new THREE.Mesh(headGeometry, skinMaterial);
+        head.position.set(0, 1.65, 0);
         head.castShadow = true;
         patientGroup.add(head);
 
-        // Torse
-        const torsoGeometry = new THREE.BoxGeometry(0.8, 1.2, 0.4);
-        const torsoMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xFFDBAC,
-            roughness: 0.7,
-            metalness: 0.1
-        });
-        const torso = new THREE.Mesh(torsoGeometry, torsoMaterial);
-        torso.position.set(0, 0.5, 0);
-        torso.castShadow = true;
-        patientGroup.add(torso);
+        // Cou
+        const neckGeometry = new THREE.CylinderGeometry(0.1, 0.12, 0.15, 32);
+        const neck = new THREE.Mesh(neckGeometry, skinMaterial);
+        neck.position.set(0, 1.5, 0);
+        patientGroup.add(neck);
 
-        // Organes interactifs
+        // Torse (Combinaison de formes pour un aspect plus organique)
+        // Poitrine / Thorax
+        const chestGeometry = new THREE.CylinderGeometry(0.28, 0.26, 0.5, 32);
+        chestGeometry.scale(1, 1, 0.7);
+        const chest = new THREE.Mesh(chestGeometry, skinMaterial);
+        chest.position.set(0, 1.2, 0);
+        chest.castShadow = true;
+        patientGroup.add(chest);
+
+        // Abdomen
+        const abdomenGeometry = new THREE.CylinderGeometry(0.26, 0.24, 0.5, 32);
+        abdomenGeometry.scale(1, 1.1, 0.75);
+        const abdomen = new THREE.Mesh(abdomenGeometry, skinMaterial);
+        abdomen.position.set(0, 0.75, 0);
+        abdomen.castShadow = true;
+        patientGroup.add(abdomen);
+
+        // Bassin
+        const hipsGeometry = new THREE.CylinderGeometry(0.24, 0.25, 0.3, 32);
+        hipsGeometry.scale(1.1, 1, 0.8);
+        const hips = new THREE.Mesh(hipsGeometry, skinMaterial);
+        hips.position.set(0, 0.4, 0);
+        hips.castShadow = true;
+        patientGroup.add(hips);
+
+        // Bras (simplifiés mais transparents)
+        const armGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.7, 16);
+        const leftArm = new THREE.Mesh(armGeo, skinMaterial);
+        leftArm.position.set(-0.35, 1.2, 0);
+        leftArm.rotation.z = 0.2;
+        patientGroup.add(leftArm);
+        const rightArm = new THREE.Mesh(armGeo, skinMaterial);
+        rightArm.position.set(0.35, 1.2, 0);
+        rightArm.rotation.z = -0.2;
+        patientGroup.add(rightArm);
+
+        // Jambes
+        const legGeo = new THREE.CylinderGeometry(0.09, 0.07, 0.9, 16);
+        const leftLeg = new THREE.Mesh(legGeo, skinMaterial);
+        leftLeg.position.set(-0.15, -0.1, 0);
+        patientGroup.add(leftLeg);
+        const rightLeg = new THREE.Mesh(legGeo, skinMaterial);
+        rightLeg.position.set(0.15, -0.1, 0);
+        patientGroup.add(rightLeg);
+
+
+        // --- ORGANES ---
         const organs = {};
+        let currentVisibleOrgan = null;
 
-        // Cœur
-        const heartGeometry = new THREE.SphereGeometry(0.15, 16, 16);
-        const heartMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xFF6B6B,
-            emissive: 0x000000,
-            roughness: 0.5,
-            metalness: 0.3
-        });
+        // Matériau de base pour les organes (visibles par défaut)
+        const organMaterialBase = {
+            transparent: false, // Opaque pour être bien visible
+            opacity: 1.0,
+            roughness: 0.3,
+            metalness: 0.2,
+            side: THREE.DoubleSide
+        };
+
+        // 1. Cœur
+        const heartGeometry = new THREE.SphereGeometry(0.08, 32, 32);
+        heartGeometry.scale(1, 1.2, 0.8);
+        const heartMaterial = new THREE.MeshStandardMaterial({ color: 0xDC143C, ...organMaterialBase });
         const heart = new THREE.Mesh(heartGeometry, heartMaterial);
-        heart.position.set(0.2, 0.8, 0.25);
+        heart.position.set(0.02, 1.25, 0.05);
+        heart.rotation.z = -0.1;
         heart.userData = { name: 'Cœur', id: 'heart' };
-        heart.castShadow = true;
         patientGroup.add(heart);
         organs.heart = heart;
 
-        // Poumons
-        const lungGeometry = new THREE.BoxGeometry(0.25, 0.4, 0.3);
-        const lungMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x4ECDC4,
-            emissive: 0x000000,
-            roughness: 0.5,
-            metalness: 0.3
-        });
-        
-        const leftLung = new THREE.Mesh(lungGeometry, lungMaterial);
-        leftLung.position.set(-0.3, 0.7, 0.2);
+        // 2. Poumons
+        const lungGeo = new THREE.SphereGeometry(0.14, 32, 32);
+        lungGeo.scale(0.8, 1.5, 0.8);
+        const lungMaterial = new THREE.MeshStandardMaterial({ color: 0xFFB6C1, ...organMaterialBase });
+
+        const leftLung = new THREE.Mesh(lungGeo, lungMaterial);
+        leftLung.position.set(-0.15, 1.25, 0);
+        leftLung.rotation.z = 0.1;
         leftLung.userData = { name: 'Poumon gauche', id: 'lungs' };
-        leftLung.castShadow = true;
         patientGroup.add(leftLung);
 
-        const rightLung = new THREE.Mesh(lungGeometry, lungMaterial);
-        rightLung.position.set(0.3, 0.7, 0.2);
+        const rightLung = new THREE.Mesh(lungGeo, lungMaterial);
+        rightLung.position.set(0.15, 1.25, 0);
+        rightLung.rotation.z = -0.1;
         rightLung.userData = { name: 'Poumon droit', id: 'lungs' };
-        rightLung.castShadow = true;
         patientGroup.add(rightLung);
         organs.lungs = [leftLung, rightLung];
 
-        // Cerveau
-        const brainGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-        const brainMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x95E1D3,
-            emissive: 0x000000,
-            roughness: 0.5,
-            metalness: 0.3
-        });
-        const brain = new THREE.Mesh(brainGeometry, brainMaterial);
-        brain.position.set(0, 1.5, 0.1);
-        brain.userData = { name: 'Cerveau', id: 'brain' };
-        brain.castShadow = true;
-        patientGroup.add(brain);
-        organs.brain = brain;
+        // 3. Foie (Sous le poumon droit)
+        const liverGeo = new THREE.SphereGeometry(0.14, 32, 32);
+        liverGeo.scale(1.4, 0.6, 0.8);
+        const liverMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, ...organMaterialBase }); // Marron/Rouge
+        const liver = new THREE.Mesh(liverGeo, liverMaterial);
+        liver.position.set(0.05, 1.0, 0.05);
+        liver.rotation.z = -0.2;
+        liver.userData = { name: 'Foie', id: 'liver' }; // Nouvel ID
+        patientGroup.add(liver);
+        organs.liver = liver; // Ajout au dictionnaire
 
-        // Estomac
-        const stomachGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-        const stomachMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xF38181,
-            emissive: 0x000000,
-            roughness: 0.5,
-            metalness: 0.3
-        });
-        const stomach = new THREE.Mesh(stomachGeometry, stomachMaterial);
-        stomach.position.set(0, 0.2, 0.25);
+        // 4. Estomac (Sous le poumon gauche)
+        const stomachGeo = new THREE.SphereGeometry(0.1, 32, 32);
+        stomachGeo.scale(1.2, 0.8, 0.6);
+        const stomachMaterial = new THREE.MeshStandardMaterial({ color: 0xFF69B4, ...organMaterialBase }); // Rose foncé
+        const stomach = new THREE.Mesh(stomachGeo, stomachMaterial);
+        stomach.position.set(-0.1, 0.95, 0.05);
+        stomach.rotation.z = 0.3;
         stomach.userData = { name: 'Estomac', id: 'stomach' };
-        stomach.castShadow = true;
         patientGroup.add(stomach);
         organs.stomach = stomach;
+
+        // 5. Intestins (Gros et grêle)
+        const intestineGroup = new THREE.Group();
+
+        // Gros intestin (Cadre)
+        const colonMaterial = new THREE.MeshStandardMaterial({ color: 0xCD853F, ...organMaterialBase });
+        const tubeGeo = new THREE.TorusGeometry(0.15, 0.04, 16, 100, 5.5); // Forme en U inversé presque fermé
+        const colon = new THREE.Mesh(tubeGeo, colonMaterial);
+        colon.position.set(0, 0.65, 0);
+        colon.rotation.z = 2.4; // Ajuster pour ouvrir vers le bas
+        intestineGroup.add(colon);
+
+        // Intestin grêle (Au centre)
+        const smallIntestineGeo = new THREE.TorusKnotGeometry(0.08, 0.02, 64, 8, 2, 3);
+        const smallIntestineMaterial = new THREE.MeshStandardMaterial({ color: 0xF4A460, ...organMaterialBase });
+        const smallIntestine = new THREE.Mesh(smallIntestineGeo, smallIntestineMaterial);
+        smallIntestine.scale.set(1, 0.8, 0.5);
+        smallIntestine.position.set(0, 0.65, 0.05);
+        intestineGroup.add(smallIntestine);
+
+        intestineGroup.userData = { name: 'Intestins', id: 'intestines' };
+        // Propager userData aux enfants pour le raycasting
+        colon.userData = { name: 'Gros Intestin', id: 'intestines' };
+        smallIntestine.userData = { name: 'Intestin Grêle', id: 'intestines' };
+
+        patientGroup.add(intestineGroup);
+        organs.intestines = [colon, smallIntestine];
+
+        // 6. Cerveau
+        const brainGeo = new THREE.SphereGeometry(0.15, 32, 32);
+        brainGeo.scale(0.9, 0.7, 1);
+        const brainMaterial = new THREE.MeshStandardMaterial({ color: 0xFFE4E1, ...organMaterialBase });
+        const brain = new THREE.Mesh(brainGeo, brainMaterial);
+        brain.position.set(0, 1.68, 0);
+        brain.userData = { name: 'Cerveau', id: 'brain' };
+        patientGroup.add(brain);
+        organs.brain = brain;
 
         scene.add(patientGroup);
 
         // Sol
         const floorGeometry = new THREE.PlaneGeometry(10, 10);
-        const floorMaterial = new THREE.MeshStandardMaterial({ 
+        const floorMaterial = new THREE.MeshStandardMaterial({
             color: 0x0F0F1E,
             roughness: 0.8,
             metalness: 0.2
@@ -191,16 +276,16 @@
             if (isDragging) {
                 const deltaX = e.clientX - previousMousePosition.x;
                 const deltaY = e.clientY - previousMousePosition.y;
-                
+
                 rotation.y += deltaX * 0.01;
                 rotation.x += deltaY * 0.01;
-                
+
                 // Limiter la rotation verticale
                 rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotation.x));
-                
+
                 patientGroup.rotation.y = rotation.y;
                 patientGroup.rotation.x = rotation.x;
-                
+
                 previousMousePosition = { x: e.clientX, y: e.clientY };
             }
         });
@@ -278,7 +363,7 @@
         // Animation
         function animate() {
             requestAnimationFrame(animate);
-            
+
             // Animation subtile des organes
             const time = Date.now() * 0.001;
             if (organs.heart) {
@@ -288,7 +373,7 @@
                     1 + Math.sin(time * 2) * 0.05
                 );
             }
-            
+
             renderer.render(scene, camera);
         }
 
@@ -302,39 +387,75 @@
         // Démarrer l'animation
         animate();
 
+        // Fonction pour mettre en évidence un organe
+        function showOrgan(organId) {
+            // "Désélectionner" l'organe précédent
+            if (currentVisibleOrgan && currentVisibleOrgan !== organId) {
+                hideOrgan(currentVisibleOrgan);
+            }
+
+            // Mettre en évidence le nouvel organe
+            if (organs[organId]) {
+                const organ = organs[organId];
+                if (Array.isArray(organ)) {
+                    organ.forEach(o => {
+                        o.material.emissive.setHex(0xFFFFFF); // Glow blanc/brillant
+                        o.material.emissiveIntensity = 0.5;
+                        o.scale.set(1.1, 1.1, 1.1); // Légère pulsation
+                    });
+                } else {
+                    organ.material.emissive.setHex(0xFFFFFF);
+                    organ.material.emissiveIntensity = 0.5;
+                    organ.scale.set(1.1, 1.1, 1.1);
+                }
+                currentVisibleOrgan = organId;
+            }
+        }
+
+        function hideOrgan(organId) {
+            if (organs[organId]) {
+                const organ = organs[organId];
+                if (Array.isArray(organ)) {
+                    organ.forEach(o => {
+                        o.material.emissive.setHex(0x000000); // Pas d'émission
+                        o.material.emissiveIntensity = 0;
+                        o.scale.set(1, 1, 1); // Taille normale
+                    });
+                } else {
+                    organ.material.emissive.setHex(0x000000);
+                    organ.material.emissiveIntensity = 0;
+                    organ.scale.set(1, 1, 1);
+                }
+            }
+            if (currentVisibleOrgan === organId) {
+                currentVisibleOrgan = null;
+            }
+        }
+
+        function hideAllOrgans() {
+            // Réinitialise tout (enlève le surbrillance)
+            Object.keys(organs).forEach(organId => hideOrgan(organId));
+        }
+
         // Fonction pour recevoir des messages de Flutter
         window.addEventListener('message', (event) => {
-            if (event.data.type === 'highlightOrgan') {
+            if (event.data.type === 'showOrgan') {
                 const organId = event.data.organId;
-                // Mettre en évidence l'organe spécifié
-                if (organs[organId]) {
-                    const organ = organs[organId];
-                    if (Array.isArray(organ)) {
-                        organ.forEach(o => {
-                            o.material.emissive.setHex(0x23B8C0);
-                            o.scale.set(1.2, 1.2, 1.2);
-                        });
-                    } else {
-                        organ.material.emissive.setHex(0x23B8C0);
-                        organ.scale.set(1.2, 1.2, 1.2);
-                    }
-                }
+                showOrgan(organId);
+            } else if (event.data.type === 'hideOrgan') {
+                const organId = event.data.organId;
+                hideOrgan(organId);
+            } else if (event.data.type === 'hideAllOrgans') {
+                hideAllOrgans();
+            } else if (event.data.type === 'highlightOrgan') {
+                // Ancienne fonctionnalité (gardée pour compatibilité)
+                const organId = event.data.organId;
+                showOrgan(organId);
             } else if (event.data.type === 'resetHighlight') {
-                // Réinitialiser tous les organes
-                Object.values(organs).flat().forEach(organ => {
-                    if (Array.isArray(organ)) {
-                        organ.forEach(o => {
-                            o.material.emissive.setHex(0x000000);
-                            o.scale.set(1, 1, 1);
-                        });
-                    } else {
-                        organ.material.emissive.setHex(0x000000);
-                        organ.scale.set(1, 1, 1);
-                    }
-                });
+                hideAllOrgans();
             }
         });
     </script>
 </body>
-</html>
 
+</html>

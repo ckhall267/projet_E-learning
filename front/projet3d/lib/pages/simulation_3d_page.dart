@@ -4,6 +4,8 @@ import '../models/symptom.dart';
 import '../models/organ.dart';
 import '../models/clinical_case.dart';
 import '../services/ai_service.dart';
+import 'simulation_3d_js_helper_stub.dart'
+    if (dart.library.html) 'simulation_3d_js_helper.dart' as js_helper;
 
 // Import conditionnel pour web
 import 'simulation_3d_web_stub.dart'
@@ -190,13 +192,32 @@ class _Simulation3DPageState extends State<Simulation3DPage> {
 
   void _selectOrgan(Organ organ) {
     setState(() {
-      _selectedOrgan = _selectedOrgan?.id == organ.id ? null : organ;
+      final wasSelected = _selectedOrgan?.id == organ.id;
+      _selectedOrgan = wasSelected ? null : organ;
       
       // Mettre à jour les organes highlightés
       _organs = _organs.map((o) {
-        return o.copyWith(isHighlighted: o.id == organ.id && _selectedOrgan?.id == organ.id);
+        return o.copyWith(isHighlighted: o.id == organ.id && !wasSelected);
       }).toList();
     });
+
+    // Envoyer un message à Three.js pour afficher/masquer l'organe
+    if (kIsWeb) {
+      _sendMessageTo3D(_selectedOrgan != null && _selectedOrgan!.id == organ.id 
+          ? {'type': 'showOrgan', 'organId': organ.id}
+          : {'type': 'hideAllOrgans'});
+    }
+  }
+
+  void _sendMessageTo3D(Map<String, dynamic> message) {
+    if (kIsWeb) {
+      try {
+        // Utiliser le helper pour envoyer le message
+        js_helper.sendMessageTo3D(message);
+      } catch (e) {
+        print('Erreur lors de l\'envoi du message à Three.js: $e');
+      }
+    }
   }
 
   @override

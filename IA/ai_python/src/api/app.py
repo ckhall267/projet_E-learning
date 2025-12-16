@@ -137,8 +137,23 @@ async def root():
             "diagnostic": "/predict",
             "recommendation": "/recommend",
             "check_answer": "/check_answer",
+            "symptoms": "/symptoms",
             "health": "/health"
         }
+    }
+
+
+@app.get("/symptoms")
+async def get_symptoms():
+    """Get list of all supported symptoms."""
+    if feature_columns is None:
+         # Try to load if not loaded (should be loaded on startup)
+         load_models()
+         if feature_columns is None:
+             raise HTTPException(status_code=503, detail="Feature columns not loaded")
+    
+    return {
+        "symptoms": [{"id": i, "name": name} for i, name in enumerate(feature_columns)]
     }
 
 

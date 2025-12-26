@@ -11,4 +11,6 @@ public interface TravailPratiqueRepository extends JpaRepository<TravailPratique
     List<TravailPratique> findByProfesseurId(Long professeurId);
 
     List<TravailPratique> findByEtudiantsAssignesContaining(com.med3d.backend.model.User etudiant);
+
+    List<TravailPratique> findByTitreContainingIgnoreCase(String titre);
 }

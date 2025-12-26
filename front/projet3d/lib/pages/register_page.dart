@@ -28,6 +28,19 @@ class _RegisterPageState extends State<RegisterPage> {
 
   final _authService = AuthService();
 
+  // Fonction pour mapper les rôles avec accents vers les rôles sans accents du backend
+  String _mapRoleToBackend(String role) {
+    switch (role) {
+      case 'Étudiant':
+        return 'Etudiant';
+      case 'Professeur':
+        return 'Professeur';
+      
+      default:
+        return role;
+    }
+  }
+
   Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
       try {
@@ -43,7 +56,7 @@ class _RegisterPageState extends State<RegisterPage> {
           _nameController.text.split(' ').length > 1 ? _nameController.text.split(' ').sublist(1).join(' ') : '', // Nom
           _emailController.text,
           _passwordController.text,
-          _selectedRole,
+          _mapRoleToBackend(_selectedRole),
         );
 
         if (mounted) {
@@ -146,7 +159,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           decoration: const InputDecoration(
                             border: InputBorder.none,
                           ),
-                          items: ['Étudiant', 'Professeur']
+                          items: ['Étudiant', 'Professeur', 'Administrateur']
                               .map((role) => DropdownMenuItem(
                                     value: role,
                                     child: Text(role),

@@ -175,7 +175,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 ),
                 child: Center(
                   child: Text(
-                    '${widget.prenom[0]}${widget.nom[0]}',
+                    '${widget.prenom.isNotEmpty ? widget.prenom[0] : "E"}${widget.nom.isNotEmpty ? widget.nom[0] : "E"}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,

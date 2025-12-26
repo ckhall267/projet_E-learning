@@ -5,6 +5,8 @@ import com.med3d.backend.model.CasClinique;
 import com.med3d.backend.repository.CasCliniqueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,7 +25,7 @@ public class CasCliniqueService {
 
     public CasCliniqueDTO getCaseById(Long id) {
         CasClinique cas = casCliniqueRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cas clinique non trouvé"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cas clinique non trouvé"));
         return mapToDTO(cas);
     }
 
@@ -35,7 +37,7 @@ public class CasCliniqueService {
 
     public CasCliniqueDTO updateCase(Long id, CasCliniqueDTO dto) {
         CasClinique cas = casCliniqueRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cas clinique non trouvé"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cas clinique non trouvé"));
 
         cas.setTitre(dto.getTitre());
         cas.setDescription(dto.getDescription());
@@ -54,7 +56,22 @@ public class CasCliniqueService {
     }
 
     public void deleteCase(Long id) {
+        if (!casCliniqueRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Cas clinique non trouvé");
+        }
         casCliniqueRepository.deleteById(id);
+    }
+
+    public List<CasCliniqueDTO> getCasesByTravailPratique(Long tpId) {
+        return casCliniqueRepository.findByTravailPratiqueId(tpId).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<CasCliniqueDTO> searchByTitre(String titre) {
+        return casCliniqueRepository.findByTitreContainingIgnoreCase(titre).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
     }
 
     private CasCliniqueDTO mapToDTO(CasClinique cas) {

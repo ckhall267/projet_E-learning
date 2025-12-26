@@ -9,6 +9,8 @@ import com.med3d.backend.repository.NoteRepository;
 import com.med3d.backend.model.Note;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -41,14 +43,14 @@ public class TravailPratiqueService {
 
     public TravailPratique createTravailPratique(TravailPratique tp, Long professeurId) {
         User professeur = userRepository.findById(professeurId)
-                .orElseThrow(() -> new RuntimeException("Professeur non trouvé"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Professeur non trouvé"));
         tp.setProfesseur(professeur);
         return travailPratiqueRepository.save(tp);
     }
 
     public TravailPratique updateTravailPratique(Long id, TravailPratique tpDetails) {
         TravailPratique tp = travailPratiqueRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("TP non trouvé"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "TP non trouvé"));
 
         tp.setTitre(tpDetails.getTitre());
         tp.setDescription(tpDetails.getDescription());
@@ -63,8 +65,16 @@ public class TravailPratiqueService {
         travailPratiqueRepository.deleteById(id);
     }
 
+    public boolean existsById(Long id) {
+        return travailPratiqueRepository.existsById(id);
+    }
+
     public Optional<TravailPratique> getTravailPratiqueById(Long id) {
         return travailPratiqueRepository.findById(id);
+    }
+
+    public List<TravailPratique> searchByTitre(String titre) {
+        return travailPratiqueRepository.findByTitreContainingIgnoreCase(titre);
     }
 
     public void addStudentToTP(Long tpId, Long studentId) {

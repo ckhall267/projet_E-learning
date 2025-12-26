@@ -31,7 +31,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
 
   Future<void> _fetchStudents() async {
 
-    final url = Uri.parse('http://localhost:8080/api/users/role/Etudiant');
+    final url = Uri.parse('http://localhost:8083/api/users/role/Etudiant');
     try {
       final response = await http.get(
         url,
@@ -62,7 +62,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
   }
 
   Future<void> _assignStudent(int studentId) async {
-    final url = Uri.parse('http://localhost:8080/api/tps/${widget.tpId}/students/$studentId');
+    final url = Uri.parse('http://localhost:8083/api/tps/${widget.tpId}/students/$studentId');
     try {
       final response = await http.post(
         url,

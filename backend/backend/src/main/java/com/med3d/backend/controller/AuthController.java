@@ -42,7 +42,8 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(authenticationRequest.getEmail(),
                             authenticationRequest.getPassword()));
         } catch (BadCredentialsException e) {
-            throw new Exception("Incorrect username or password", e);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body("Incorrect username or password");
         }
 
         final UserDetails userDetails = userDetailsService
@@ -54,11 +55,16 @@ public class AuthController {
         com.med3d.backend.model.User user = userRepository.findByEmail(authenticationRequest.getEmail()).orElseThrow();
 
         return ResponseEntity
-                .ok(new AuthenticationResponse(jwt, user.getRole().name(), user.getNom(), user.getPrenom()));
+            .ok(new AuthenticationResponse(jwt, user.getRole().name(), user.getNom(), user.getPrenom(),
+                user.getEmail()));
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody com.med3d.backend.security.RegisterRequest registerRequest) {
+        if (registerRequest.getEmail() == null || registerRequest.getEmail().isBlank()) {
+            return ResponseEntity.badRequest().body("Email is required");
+        }
+
         if (userRepository.findByEmail(registerRequest.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body("Error: Email is already in use!");
         }
@@ -85,7 +91,8 @@ public class AuthController {
         final String jwt = jwtUtil.generateToken(userDetails);
 
         return ResponseEntity
-                .ok(new AuthenticationResponse(jwt, user.getRole().name(), user.getNom(), user.getPrenom()));
+            .ok(new AuthenticationResponse(jwt, user.getRole().name(), user.getNom(), user.getPrenom(),
+                user.getEmail()));
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/me")

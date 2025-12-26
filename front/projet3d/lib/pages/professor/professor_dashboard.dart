@@ -48,6 +48,79 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
     _fetchCases();
   }
 
+  Future<void> _deleteClinicalCase(String id) async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.delete(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/cases")}/$id'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _clinicalCases.removeWhere((c) => c.id == id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cas clinique supprimé'), backgroundColor: Colors.green),
+        );
+      } else {
+        _showError('Erreur suppression cas: ${response.body}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updateClinicalCase(ClinicalCase caseItem) async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.put(
+        Uri.parse('${_authService.baseUrl.replaceAll("/auth", "/cases")}/${caseItem.id}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(caseItem.toJson()),
+      );
+
+      if (response.statusCode == 200) {
+        _fetchCases();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cas modifié avec succès'), backgroundColor: Colors.green),
+        );
+      } else {
+        _showError('Erreur modification cas: ${response.body}');
+      }
+    } catch (e) {
+      _showError('Erreur connexion: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _handleEditCase(ClinicalCase caseItem) {
+    showDialog(
+      context: context,
+      builder: (context) => CreateCaseDialog(
+        availableTPs: _practicalWorks,
+        onCreate: (updatedCase) {
+          final caseToUpdate = ClinicalCase(
+            id: caseItem.id,
+            title: updatedCase.title,
+            description: updatedCase.description,
+            symptoms: updatedCase.symptoms,
+            difficulty: updatedCase.difficulty,
+          );
+          _updateClinicalCase(caseToUpdate);
+        },
+      ),
+    );
+  }
+
   Future<void> _fetchCases() async {
     // setState(() => _isLoading = true); // Avoid double loading state with TPs or handle separately
     try {
@@ -445,7 +518,7 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
                 ),
                 child: Center(
                   child: Text(
-                    '${widget.prenom[0]}${widget.nom[0]}',
+                    '${widget.prenom.isNotEmpty ? widget.prenom[0] : "P"}${widget.nom.isNotEmpty ? widget.nom[0] : "P"}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -779,40 +852,98 @@ class _ProfessorDashboardState extends State<ProfessorDashboard> {
             ],
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => Simulation3DPage(initialCase: caseItem),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF23B8C0),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.play_arrow, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text(
-                    'Lancer la simulation',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Simulation3DPage(initialCase: caseItem),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF23B8C0),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                ],
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.play_arrow, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Lancer',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => _handleEditCase(caseItem),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Icon(Icons.edit, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: const Color(0xFF1A1A2E),
+                      title: const Text(
+                        'Supprimer le cas',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      content: Text(
+                        'Êtes-vous sûr de vouloir supprimer "${caseItem.title}" ?',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Annuler', style: TextStyle(color: Colors.white70)),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _deleteClinicalCase(caseItem.id);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          child: const Text('Supprimer', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Icon(Icons.delete, color: Colors.white),
+              ),
+            ],
           ),
         ],
       ),
